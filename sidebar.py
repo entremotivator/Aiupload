@@ -1,82 +1,30 @@
 import streamlit as st
-import json
 import os
 from datetime import datetime
-from utils.auth import authenticate_user, logout_user
 from utils.config import get_config, init_session_state, update_last_activity
+from utils.auth import logout_user
 
 def show_sidebar():
-    """Render the sidebar UI"""
+    """Render the sidebar UI after login"""
     init_session_state()
 
     with st.sidebar:
         st.title("🏢 Business Suite")
+        st.markdown(f"👋 Welcome, **{st.session_state.get('user_name', 'User')}**")
+        st.markdown(f"📧 {st.session_state.get('user_email', 'No email')}")
         st.markdown("---")
 
-        if not st.session_state.get('logged_in', False):
-            login_section()
-        else:
-            authenticated_section()
+        navigation_menu()
+        st.markdown("---")
+        quick_stats_section()
+        st.markdown("---")
+        system_controls()
+        st.markdown("---")
+        footer_section()
 
 
-def login_section():
-    """Sidebar login interface with service account upload"""
-    st.subheader("🔐 Login")
-
-    st.markdown("### 📊 Google Sheets Setup")
-    uploaded_file = st.file_uploader(
-        "Upload Service Account JSON",
-        type=['json'],
-        help="Upload your Google Sheets service account JSON file",
-        key="upload_service_account"
-    )
-
-    if uploaded_file:
-        try:
-            service_account_info = json.load(uploaded_file)
-            required = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email']
-            if all(k in service_account_info for k in required):
-                st.session_state['service_account_info'] = service_account_info
-
-                path = "temp_service_account.json"
-                with open(path, "w") as f:
-                    json.dump(service_account_info, f)
-                st.session_state['service_account_path'] = path
-
-                st.success("✅ Service account uploaded!")
-            else:
-                st.error("❌ Missing fields in service account JSON.")
-        except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
-
-    st.markdown("### 👤 User Login")
-    with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Login")
-
-        if submit:
-            if authenticate_user(username, password):
-                st.success("✅ Login successful!")
-                st.rerun()
-            else:
-                st.error("❌ Invalid username or password")
-
-
-def authenticated_section():
-    """Sidebar content for authenticated users"""
-    st.markdown(f"👋 Welcome, **{st.session_state.get('user_name', 'User')}**")
-    st.markdown(f"📧 {st.session_state.get('user_email', 'No email')}")
-
-    # Google Sheets Status
-    if st.session_state.get('service_account_info'):
-        st.success("✅ Google Sheets Connected")
-        email = st.session_state['service_account_info'].get('client_email', 'Unknown')
-        st.info(f"Service Email: {email}")
-    else:
-        st.warning("⚠️ Google Sheets not connected")
-
-    st.markdown("---")
+def navigation_menu():
+    """Sidebar navigation buttons"""
     st.subheader("📋 Navigation")
 
     pages = [
@@ -91,24 +39,15 @@ def authenticated_section():
         ("📞 Call Center", "9_Call_Center"),
     ]
 
-    current_page = st.session_state.get("current_page", "Dashboard")
-
     for label, key in pages:
         if st.button(label, use_container_width=True, key=f"nav_{key}"):
             st.session_state["current_page"] = key
             update_last_activity()
             st.rerun()
 
-    st.markdown("---")
-    quick_stats_section()
-    st.markdown("---")
-    system_section()
-    st.markdown("---")
-    footer_section()
-
 
 def quick_stats_section():
-    """Show quick metrics and session info"""
+    """Quick metrics and session info"""
     st.subheader("📊 Quick Stats")
 
     try:
@@ -129,8 +68,8 @@ def quick_stats_section():
         st.error(f"Error fetching stats: {e}")
 
 
-def system_section():
-    """Buttons for logout, refresh, and theme selection"""
+def system_controls():
+    """Refresh, logout, and theme selection"""
     st.subheader("⚙️ System")
 
     col1, col2 = st.columns(2)
@@ -161,7 +100,7 @@ def system_section():
 
 
 def footer_section():
-    """Footer with version and timestamp"""
+    """Display version and timestamp"""
     version = get_config("version", "2.0.0")
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -175,14 +114,3 @@ def footer_section():
         unsafe_allow_html=True
     )
 
-
-# Optional: clean up temporary files
-def cleanup_temp_files():
-    try:
-        if os.path.exists("temp_service_account.json"):
-            os.remove("temp_service_account.json")
-    except Exception:
-        pass
-
-import atexit
-atexit.register(cleanup_temp_files)
